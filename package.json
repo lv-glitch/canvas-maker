@@ -108,8 +108,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "TODO-GITHUB-OWNER",
-        "repo": "TODO-GITHUB-REPO",
+        "owner": "lv-glitch",
+        "repo": "canvas-maker",
         "releaseType": "release"
       }
     ]
