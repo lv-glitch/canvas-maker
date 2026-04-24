@@ -169,29 +169,21 @@ Output lands in `release/`. Artifacts are named
 - Ad-hoc-signed DMG installers for arm64 + x64
 - `electron-updater` wired into the main process (idle until a feed exists)
 
-### ⏳ Blocked on accounts (Part 2 — ship to staff with auto-updates)
+### ⏳ Blocked on two account signups (Part 2 — ship to staff)
 
-The update pipeline is ready to switch on as soon as these exist:
+All the pipeline plumbing is in place — `.github/workflows/release.yml`,
+`electron-updater` in `electron/main.js`, `publish` block in `package.json`.
+Nothing to write. Just need credentials.
 
-1. **GitHub repo** (private is fine) — hosts source and serves the update feed via
-   GitHub Releases. Required.
-2. **Apple Developer account** ($99/yr) — for code-signing + notarizing the macOS
-   build. Without it, staff see the Gatekeeper "unidentified developer" warning
-   on first install and can't get silent background auto-updates. Required for
-   macOS staff.
-3. **Windows code-signing certificate** ($100–400/yr or Azure Trusted Signing) —
-   only if any staff are on Windows. Without it, Windows SmartScreen warns on
-   first launch.
+1. **GitHub account + repo** (free) — hosts code and the update feed.
+2. **Apple Developer account** ($99/yr) — for code-signing + notarization.
+   Without it there's no silent auto-update on macOS (staff would have to
+   manually re-install every release).
+3. **Windows code-signing cert** — only if any staff are on Windows.
 
-### When the accounts are ready
-- Fill in the `publish` block of `package.json`:
-  ```json
-  "publish": [{ "provider": "github", "owner": "<YOU>", "repo": "<REPO>" }]
-  ```
-- Add Apple credentials as GitHub Actions secrets: `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`, `CSC_LINK` (signing cert base64), `CSC_KEY_PASSWORD`.
-- Add a `.github/workflows/release.yml` that runs `electron-builder --publish always` on tag push.
-- Tagging `v0.3.0` → GitHub Action → signed/notarized DMG uploaded to Releases →
-  installed app auto-downloads on next launch via `electron-updater`.
+See **[DISTRIBUTION.md](./DISTRIBUTION.md)** for click-by-click setup. Once the
+two accounts exist and you've added the 5 secrets to GitHub, releasing is
+literally `npm version patch && git push --tags`.
 
 ---
 
