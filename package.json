@@ -1,0 +1,117 @@
+{
+  "name": "canvas-maker",
+  "productName": "55 Music Canvas Generator",
+  "version": "0.2.1",
+  "description": "Generate Spotify Canvas videos from photos — 55 Music",
+  "author": {
+    "name": "55 Music",
+    "email": "lv@fiftyfive.music"
+  },
+  "type": "module",
+  "main": "electron/main.js",
+  "bin": {
+    "canvas-maker": "src/cli.js",
+    "canvas-maker-web": "src/server.js"
+  },
+  "scripts": {
+    "cli": "node src/cli.js",
+    "web": "node src/server.js",
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "pack": "electron-builder --dir"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3",
+    "express": "^4.21.1",
+    "ffmpeg-static": "^5.3.0",
+    "multer": "^1.4.5-lts.1",
+    "p-limit": "^7.3.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "electron": "^41.3.0",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.fiftyfivemusic.canvasgenerator",
+    "productName": "55 Music Canvas Generator",
+    "copyright": "© 55 Music",
+    "artifactName": "55-Music-Canvas-Generator-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**",
+      "src/**",
+      "public/**",
+      "package.json",
+      "!node_modules/**/test/**",
+      "!node_modules/**/*.md"
+    ],
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**"
+    ],
+    "mac": {
+      "category": "public.app-category.music",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "darkModeSupport": true
+    },
+    "dmg": {
+      "title": "55 Music Canvas Generator ${version}",
+      "contents": [
+        {
+          "x": 130,
+          "y": 220,
+          "type": "file"
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "TODO-GITHUB-OWNER",
+        "repo": "TODO-GITHUB-REPO",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

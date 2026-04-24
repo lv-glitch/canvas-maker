@@ -1,0 +1,53 @@
+name: Release
+
+# Triggered when you push a version tag (e.g. `git tag v0.3.0 && git push --tags`).
+# Builds signed + notarized DMGs for macOS (arm64 + x64) and uploads them to a
+# GitHub Release. electron-updater in the installed app auto-discovers this feed
+# and ships silent updates to staff on next launch.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#
+#   APPLE_ID                    — Apple ID email with an active Developer account
+#   APPLE_APP_SPECIFIC_PASSWORD — from https://account.apple.com → Sign-In and Security
+#                                 → App-Specific Passwords (not your Apple ID password)
+#   APPLE_TEAM_ID               — 10-char team id from developer.apple.com/account (top right)
+#   CSC_LINK                    — base64-encoded .p12 signing cert:
+#                                   base64 -i cert.p12 | pbcopy
+#   CSC_KEY_PASSWORD            — password you set on the .p12 when exporting it
+#
+# GITHUB_TOKEN is provided automatically.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: # allow manual triggering from the Actions tab
+
+permissions:
+  contents: write # needed to create/update the GitHub Release
+
+jobs:
+  release-mac:
+    runs-on: macos-14 # Apple Silicon runner; can cross-build x64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and publish
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --mac --arm64 --x64 --publish always

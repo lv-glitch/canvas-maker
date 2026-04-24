@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>55 Music Canvas Generator</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --panel: #141414;
+    --panel-2: #1c1c1c;
+    --ink: #f5f5f5;
+    --ink-dim: #9a9a9a;
+    --accent: #1db954;
+    --accent-dim: #179443;
+    --border: #2a2a2a;
+    --danger: #e04e4e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 32px 20px 64px;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .subtitle { color: var(--ink-dim); margin: 0 0 28px; font-size: 13px; }
+  .app { width: 100%; max-width: 900px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 720px) { .app { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .drop {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    aspect-ratio: 1 / 1;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; color: var(--ink-dim);
+    cursor: pointer; transition: border-color .15s, background .15s;
+    position: relative; overflow: hidden;
+  }
+  .drop:hover, .drop.dragging { border-color: var(--accent); background: #0f1a12; color: var(--ink); }
+  .drop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .drop .hint { z-index: 1; padding: 0 20px; pointer-events: none; }
+  .drop input[type=file] { display: none; }
+
+  label.field { display: block; margin-top: 14px; font-size: 12px; color: var(--ink-dim); letter-spacing: .02em; text-transform: uppercase; }
+  select, input[type=range] { width: 100%; }
+  select {
+    appearance: none; -webkit-appearance: none;
+    background: var(--panel-2); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; font-size: 14px; margin-top: 6px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%239a9a9a' stroke-width='1.5' fill='none'/></svg>");
+    background-repeat: no-repeat; background-position: right 12px center;
+    padding-right: 32px;
+  }
+  input[type=range] { margin-top: 10px; accent-color: var(--accent); }
+  .row-inline { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .row-inline input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+  .val { font-variant-numeric: tabular-nums; color: var(--ink); }
+
+  .desc {
+    font-size: 12px; color: var(--ink-dim);
+    margin-top: 6px; min-height: 16px;
+  }
+  details.advanced {
+    margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px;
+  }
+  details.advanced summary {
+    cursor: pointer; font-size: 12px; color: var(--ink-dim);
+    text-transform: uppercase; letter-spacing: .02em; user-select: none;
+  }
+  details.advanced summary:hover { color: var(--ink); }
+  details.advanced[open] summary { margin-bottom: 4px; }
+
+  button.go {
+    width: 100%; margin-top: 18px;
+    background: var(--accent); color: #000;
+    border: 0; border-radius: 999px;
+    padding: 12px 16px; font-weight: 600; font-size: 14px;
+    cursor: pointer; transition: background .15s, opacity .15s;
+  }
+  button.go:hover { background: #1ed760; }
+  button.go:disabled { background: var(--panel-2); color: var(--ink-dim); cursor: not-allowed; }
+
+  .result { display: flex; flex-direction: column; gap: 12px; }
+  .result video {
+    width: 100%; aspect-ratio: 9/16;
+    background: #000; border-radius: 10px; border: 1px solid var(--border);
+  }
+  .result .meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-dim); }
+  .result a.dl {
+    display: inline-block; text-decoration: none;
+    color: var(--ink); background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; text-align: center;
+  }
+  .result a.dl:hover { border-color: var(--accent); }
+  .empty { color: var(--ink-dim); font-size: 13px; text-align: center; padding: 40px 0; }
+  .error { color: var(--danger); font-size: 13px; white-space: pre-wrap; }
+
+  .status { color: var(--ink-dim); font-size: 13px; margin-top: 8px; text-align: center; min-height: 18px; }
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <h1>55 Music Canvas Generator</h1>
+  <p class="subtitle">Photo → Spotify Canvas (9:16 MP4, looping, full-frame)</p>
+
+  <form class="app" id="form">
+    <section class="panel">
+      <label class="drop" id="drop">
+        <span class="hint" id="hint">Drop a photo here<br/><small>or click to choose</small></span>
+        <input type="file" id="file" accept="image/*" required />
+      </label>
+
+      <label class="field" for="animation">Animation</label>
+      <select id="animation" name="animation"></select>
+      <div class="desc" id="animDesc"></div>
+
+      <label class="field" for="duration">Duration: <span class="val" id="durval">6</span>s</label>
+      <input type="range" id="duration" name="duration" min="3" max="8" step="1" value="6" />
+
+      <div class="row-inline">
+        <input type="checkbox" id="particles" name="particles" />
+        <label for="particles">Particle shimmer</label>
+      </div>
+
+      <details class="advanced">
+        <summary>Advanced</summary>
+        <label class="field" for="layout">Frame fit</label>
+        <select id="layout" name="layout">
+          <option value="fill">Fill frame (crop photo to 9:16)</option>
+          <option value="fit">Blurred background + centered photo</option>
+          <option value="letterbox">Black bars + centered photo</option>
+        </select>
+      </details>
+
+      <button class="go" id="go" type="submit" disabled>Generate Canvas</button>
+      <div class="status" id="status"></div>
+    </section>
+
+    <section class="panel result" id="result">
+      <div class="empty" id="empty">Your canvas will appear here.</div>
+    </section>
+  </form>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const drop = $('drop'), file = $('file'), hint = $('hint'), go = $('go');
+const statusEl = $('status'), durVal = $('durval'), dur = $('duration');
+const animationSel = $('animation'), layoutSel = $('layout');
+const animDesc = $('animDesc');
+const result = $('result'), empty = $('empty');
+
+let previewURL = null;
+let currentMP4 = null;
+let animDescriptions = {};
+
+fetch('/api/options').then(r => r.json()).then(({ animations, defaults }) => {
+  for (const { name, description } of animations) {
+    animDescriptions[name] = description;
+    const label = `${name[0].toUpperCase()}${name.slice(1)}`;
+    animationSel.add(new Option(label, name, name === defaults.animation, name === defaults.animation));
+  }
+  animDesc.textContent = animDescriptions[animationSel.value] || '';
+  if (defaults.layout) layoutSel.value = defaults.layout;
+});
+
+animationSel.addEventListener('change', () => {
+  animDesc.textContent = animDescriptions[animationSel.value] || '';
+});
+
+dur.addEventListener('input', () => durVal.textContent = dur.value);
+
+function setImage(f) {
+  if (!f) return;
+  if (previewURL) URL.revokeObjectURL(previewURL);
+  previewURL = URL.createObjectURL(f);
+  drop.querySelectorAll('img').forEach(n => n.remove());
+  const img = document.createElement('img');
+  img.src = previewURL;
+  drop.appendChild(img);
+  hint.style.display = 'none';
+  go.disabled = false;
+}
+
+drop.addEventListener('click', (e) => { if (e.target !== file) file.click(); });
+file.addEventListener('change', () => setImage(file.files[0]));
+['dragover','dragenter'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('dragging'); }));
+['dragleave','dragend','drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('dragging'); }));
+drop.addEventListener('drop', (e) => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) {
+    const dt = new DataTransfer(); dt.items.add(f); file.files = dt.files;
+    setImage(f);
+  }
+});
+
+$('form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!file.files[0]) return;
+
+  go.disabled = true;
+  statusEl.innerHTML = '<span class="spin"></span>Rendering…';
+
+  const fd = new FormData();
+  fd.append('image', file.files[0]);
+  fd.append('animation', animationSel.value);
+  fd.append('layout', layoutSel.value);
+  fd.append('duration', dur.value);
+  if ($('particles').checked) fd.append('particles', 'true');
+
+  const started = performance.now();
+  try {
+    const res = await fetch('/api/generate', { method: 'POST', body: fd });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(err.error || 'Generation failed');
+    }
+    const blob = await res.blob();
+    if (currentMP4) URL.revokeObjectURL(currentMP4);
+    currentMP4 = URL.createObjectURL(blob);
+    const elapsed = ((performance.now() - started) / 1000).toFixed(1);
+    const sizeMB = (blob.size / 1024 / 1024).toFixed(2);
+    empty.style.display = 'none';
+    result.innerHTML = `
+      <video src="${currentMP4}" autoplay muted loop playsinline></video>
+      <div class="meta"><span>${sizeMB} MB • ${elapsed}s render</span><span>${animationSel.value} / ${layoutSel.value} / ${dur.value}s</span></div>
+      <a class="dl" href="${currentMP4}" download="canvas.mp4">Download MP4</a>
+    `;
+    statusEl.textContent = '';
+  } catch (err) {
+    result.innerHTML = `<div class="empty error">${err.message}</div>`;
+    statusEl.textContent = '';
+  } finally {
+    go.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
