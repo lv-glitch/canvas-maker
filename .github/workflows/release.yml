@@ -42,17 +42,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Apple's official action for macOS signing. Imports the .p12 into a
+      # fresh keychain AND installs the Developer ID Intermediate CA — the
+      # missing intermediate is what caused `codesign --display` to fail with
+      # "No such process" in previous runs.
+      - name: Import signing certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.CSC_LINK }}
+          p12-password: ${{ secrets.CSC_KEY_PASSWORD }}
+
       # Each arch gets its own build → sign → notarize → publish cycle.
-      # Running both in a single electron-builder invocation triggers a known
-      # "No such process" error from codesign when notarizing the 2nd arch.
+      # Running both in a single electron-builder invocation can trip up
+      # @electron/notarize's signature pre-check on the 2nd arch.
+      #
+      # Note: we do NOT set CSC_LINK / CSC_KEY_PASSWORD as env vars here.
+      # With those set, electron-builder creates its own temp keychain, which
+      # doesn't see the Apple intermediate cert we just imported. By leaving
+      # them unset, electron-builder finds the identity in the default
+      # keychain set up by the apple-actions step above.
 
       - name: Build and publish arm64
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "true"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder --mac dmg --arm64 --publish always
 
@@ -61,7 +76,6 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "true"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder --mac dmg --x64 --publish always
