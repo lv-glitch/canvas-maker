@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Electron requires JIT for V8 when hardened runtime is on. -->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+
+	<!-- V8 creates executable memory pages that aren't signed. -->
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+
+	<!-- Node.js needs to load native modules and frameworks that may not be
+	     signed by the same Team ID (ffmpeg-static, ICU, etc.). -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+
+	<!-- Allow spawning child processes that inherit the parent's entitlements.
+	     Without this, the Electron helper processes (GPU, renderer, utility)
+	     fail to launch under hardened runtime. -->
+	<key>com.apple.security.cs.allow-dyld-environment-variables</key>
+	<true/>
+</dict>
+</plist>
