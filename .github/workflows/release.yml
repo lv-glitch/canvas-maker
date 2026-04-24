@@ -42,7 +42,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and publish
+      # Each arch gets its own build → sign → notarize → publish cycle.
+      # Running both in a single electron-builder invocation triggers a known
+      # "No such process" error from codesign when notarizing the 2nd arch.
+
+      - name: Build and publish arm64
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -50,4 +54,14 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --mac --arm64 --x64 --publish always
+        run: npx electron-builder --mac dmg --arm64 --publish always
+
+      - name: Build and publish x64
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --mac dmg --x64 --publish always
