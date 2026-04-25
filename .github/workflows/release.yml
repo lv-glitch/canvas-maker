@@ -63,6 +63,7 @@ jobs:
       # keychain set up by the apple-actions step above.
 
       - name: Build and publish arm64
+        timeout-minutes: 30
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -72,6 +73,7 @@ jobs:
         run: npx electron-builder --mac dmg --arm64 --publish always
 
       - name: Build and publish x64
+        timeout-minutes: 30
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
