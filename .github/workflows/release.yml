@@ -52,21 +52,24 @@ jobs:
           p12-file-base64: ${{ secrets.CSC_LINK }}
           p12-password: ${{ secrets.CSC_KEY_PASSWORD }}
 
+      # Decode the App Store Connect API key from the secret to a .p8 file.
+      # @electron/notarize expects APPLE_API_KEY to be a path to the .p8.
+      - name: Decode App Store Connect API key
+        run: |
+          mkdir -p ~/private_keys
+          echo "${{ secrets.APPLE_API_KEY }}" | base64 -d > ~/private_keys/AuthKey.p8
+          chmod 600 ~/private_keys/AuthKey.p8
+
       # Each arch gets its own build → sign → notarize → publish cycle.
-      # Running both in a single electron-builder invocation can trip up
-      # @electron/notarize's signature pre-check on the 2nd arch.
-      #
-      # Note: we do NOT set CSC_LINK / CSC_KEY_PASSWORD as env vars here.
-      # With those set, electron-builder creates its own temp keychain, which
-      # doesn't see the Apple intermediate cert we just imported. By leaving
-      # them unset, electron-builder finds the identity in the default
-      # keychain set up by the apple-actions step above.
+      # API-key notarization is more reliable than the password-based flow,
+      # which was hanging indefinitely on Apple's servers.
 
       - name: Build and publish arm64
         timeout-minutes: 30
         env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_API_KEY: ~/private_keys/AuthKey.p8
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           CSC_IDENTITY_AUTO_DISCOVERY: "true"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -75,8 +78,9 @@ jobs:
       - name: Build and publish x64
         timeout-minutes: 30
         env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_API_KEY: ~/private_keys/AuthKey.p8
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           CSC_IDENTITY_AUTO_DISCOVERY: "true"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
