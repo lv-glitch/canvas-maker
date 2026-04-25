@@ -74,10 +74,7 @@
       "gatekeeperAssess": false,
       "darkModeSupport": true,
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist",
-      "notarize": {
-        "teamId": "RDSXMH9YDG"
-      }
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "dmg": {
       "title": "55 Music Canvas Generator ${version}",
