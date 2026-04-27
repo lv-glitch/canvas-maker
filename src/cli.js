@@ -4,7 +4,7 @@ import { readdir, stat, mkdir } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { cpus } from 'node:os';
 import pLimit from 'p-limit';
-import { generateCanvas, ANIMATIONS, LAYOUTS, SPOTIFY_DEFAULTS } from './index.js';
+import { generateCanvas, ANIMATIONS, LAYOUTS, FILTERS, SPOTIFY_DEFAULTS } from './index.js';
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.tiff']);
 const SPOTIFY_SIZE_LIMIT_MB = 8; // conservative community-consensus cap; Spotify doesn't publish one
@@ -33,7 +33,7 @@ Options:
       --width N          Output width  (default: ${SPOTIFY_DEFAULTS.width})
       --height N         Output height (default: ${SPOTIFY_DEFAULTS.height})
       --fg-scale FLOAT   Centered-cover size, 0-1, for fit/letterbox (default: ${SPOTIFY_DEFAULTS.fgScale})
-  -p, --particles        Subtle shimmering particle overlay
+  -f, --filter NAME      ${FILTERS.join(', ')} (default: none)
   -c, --concurrency N    Parallel ffmpeg jobs (default: CPU count)
       --crf N            H.264 quality, lower = better (default: ${SPOTIFY_DEFAULTS.crf})
       --maxrate K        Max bitrate in kbps (default: ${SPOTIFY_DEFAULTS.maxBitrateKbps})
@@ -44,7 +44,8 @@ Examples:
   canvas-maker cover.jpg
   canvas-maker ./albums -a drift -d 5
   canvas-maker ./albums -l fill -a pulse
-  canvas-maker ./albums -o ./canvases -c 8 -p
+  canvas-maker ./albums -f clarendon -d 6
+  canvas-maker ./albums -o ./canvases -c 8 -f shimmer
 `);
 }
 
@@ -59,7 +60,7 @@ const { values, positionals } = parseArgs({
     width: { type: 'string', default: String(SPOTIFY_DEFAULTS.width) },
     height: { type: 'string', default: String(SPOTIFY_DEFAULTS.height) },
     'fg-scale': { type: 'string', default: String(SPOTIFY_DEFAULTS.fgScale) },
-    particles: { type: 'boolean', short: 'p', default: false },
+    filter: { type: 'string', short: 'f', default: 'none' },
     concurrency: { type: 'string', short: 'c' },
     crf: { type: 'string', default: String(SPOTIFY_DEFAULTS.crf) },
     maxrate: { type: 'string', default: String(SPOTIFY_DEFAULTS.maxBitrateKbps) },
@@ -101,10 +102,15 @@ if (inputs.length === 0) {
   process.exit(1);
 }
 
+if (!FILTERS.includes(values.filter)) {
+  console.error(`Unknown filter "${values.filter}". Must be one of: ${FILTERS.join(', ')}`);
+  process.exit(1);
+}
+
 console.log(
   `Found ${inputs.length} image(s). ` +
   `${width}x${height} layout=${values.layout} animation=${values.animation} ` +
-  `duration=${duration}s fps=${fps}${values.particles ? ' particles=on' : ''} ` +
+  `filter=${values.filter} duration=${duration}s fps=${fps} ` +
   `concurrency=${concurrency}`
 );
 
@@ -129,7 +135,7 @@ const tasks = inputs.map((file) => limit(async () => {
       width,
       height,
       fgScale,
-      particles: values.particles,
+      look: values.filter,
       crf,
       maxBitrateKbps,
       preset: values.preset,

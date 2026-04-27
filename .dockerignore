@@ -1,0 +1,14 @@
+node_modules
+release
+dist
+*.dmg
+*.zip
+.git
+.github
+.DS_Store
+*.log
+electron
+build/icon.png
+build/icon.icns
+README.md
+DISTRIBUTION.md

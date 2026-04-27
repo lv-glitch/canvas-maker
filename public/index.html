@@ -3,44 +3,75 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>55 Music Canvas Generator</title>
+<title>Canvas Buddy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+  /* Canvas Buddy brand tokens (matches the marketing site) */
   :root {
-    --bg: #0a0a0a;
-    --panel: #141414;
-    --panel-2: #1c1c1c;
-    --ink: #f5f5f5;
-    --ink-dim: #9a9a9a;
-    --accent: #1db954;
-    --accent-dim: #179443;
+    --bg: #121212;
+    --panel: #1a1a1a;
+    --panel-2: #232323;
+    --ink: #ffffff;
+    --ink-dim: #b3b3b3;
+    --ink-muted: #6a6a6a;
+    --accent: #1ED760;
+    --accent-hover: #1fdf64;
+    --purple: #B388FF;
+    --purple-hover: #c4a3ff;
     --border: #2a2a2a;
-    --danger: #e04e4e;
+    --danger: #ff6b6b;
+    --radius-card: 12px;
+    --radius-pill: 20px;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
   body {
     background: var(--bg);
     color: var(--ink);
-    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font: 14px/1.5 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
     display: flex; flex-direction: column; align-items: center;
-    padding: 32px 20px 64px;
+    padding: 24px 20px 64px;
   }
-  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.01em; }
-  .subtitle { color: var(--ink-dim); margin: 0 0 28px; font-size: 13px; }
-  .app { width: 100%; max-width: 900px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  @media (max-width: 720px) { .app { grid-template-columns: 1fr; } }
+
+  .app-header {
+    width: 100%; max-width: 1000px;
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .brand-mark {
+    width: 32px; height: 32px;
+    filter: drop-shadow(0 0 14px rgba(30, 215, 96, 0.25));
+  }
+  .brand-name {
+    font-size: 18px; font-weight: 600; letter-spacing: -0.01em;
+  }
+  .brand-sub {
+    color: var(--ink-muted); font-size: 12px;
+    border-left: 1px solid var(--border); padding-left: 10px; margin-left: 6px;
+  }
+
+  .app { width: 100%; max-width: 1000px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 760px) { .app { grid-template-columns: 1fr; } .app-header { max-width: 100%; } }
 
   .panel {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
+    border-radius: var(--radius-card);
+    padding: 22px;
   }
 
   .drop {
     border: 2px dashed var(--border);
     border-radius: 10px;
-    aspect-ratio: 1 / 1;
+    aspect-ratio: 9 / 16;
+    max-height: 60vh;
+    margin: 0 auto;
     display: flex; align-items: center; justify-content: center;
     text-align: center; color: var(--ink-dim);
     cursor: pointer; transition: border-color .15s, background .15s;
@@ -71,6 +102,131 @@
     font-size: 12px; color: var(--ink-dim);
     margin-top: 6px; min-height: 16px;
   }
+
+  .panel-top {
+    display: flex; justify-content: flex-end;
+    margin-bottom: 8px;
+  }
+  .icon-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--ink-dim); width: 32px; height: 32px;
+    border-radius: 8px; cursor: pointer; font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    transition: color .15s, border-color .15s;
+  }
+  .icon-btn:hover { color: var(--ink); border-color: var(--ink-dim); }
+
+  /* Compact AI prompt section below the drop zone. The generated image
+     replaces the drop-zone preview — no separate image display here. */
+  .ai-pane {
+    margin-top: 16px;
+    padding: 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .ai-section-title {
+    font-size: 11px; color: var(--ink-dim);
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  .ai-pane textarea {
+    min-height: 60px; max-height: 160px;
+    resize: vertical;
+    background: var(--panel); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; font: inherit; font-size: 13px; line-height: 1.4;
+  }
+  .ai-pane textarea:focus { outline: none; border-color: var(--accent); }
+  .ai-pane > .go {
+    margin-top: 0; padding: 10px 14px; font-size: 13px;
+  }
+  .ai-quality-row {
+    display: flex; gap: 8px; align-items: center; justify-content: flex-end;
+    font-size: 11px; color: var(--ink-dim);
+  }
+  .ai-quality-row label { margin: 0; font-size: 11px; }
+  .ai-quality-row select {
+    flex: 0 0 auto; margin-top: 0; font-size: 12px;
+    padding: 5px 26px 5px 10px;
+  }
+  .ai-status {
+    font-size: 12px; color: var(--ink-dim); min-height: 16px;
+    text-align: center;
+  }
+  .ai-status.error { color: var(--danger); }
+
+  /* Settings modal */
+  dialog#settingsModal {
+    background: var(--panel); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px; width: 420px; max-width: 92vw;
+  }
+  dialog#settingsModal::backdrop {
+    background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+  }
+  dialog#settingsModal h3 { margin: 0 0 8px; font-size: 16px; }
+  dialog#settingsModal p { margin: 0 0 16px; color: var(--ink-dim); font-size: 13px; }
+  dialog#settingsModal label.field { margin-top: 12px; }
+  dialog#settingsModal input[type=text],
+  dialog#settingsModal input[type=password] {
+    width: 100%; box-sizing: border-box;
+    background: var(--panel-2); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; font: inherit; font-size: 13px; margin-top: 6px;
+  }
+  dialog#settingsModal .actions {
+    display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px;
+  }
+  dialog#settingsModal button {
+    padding: 8px 14px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--panel-2);
+    color: var(--ink); font: inherit; font-size: 13px; cursor: pointer;
+  }
+  dialog#settingsModal button.primary {
+    background: var(--accent); border-color: var(--accent); color: #000; font-weight: 600;
+  }
+  dialog#settingsModal .key-status {
+    font-size: 11px; color: var(--ink-dim); margin-top: 6px;
+  }
+
+  .filter-pills {
+    margin-top: 8px;
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .filter-pill {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--ink-dim);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font: inherit; font-size: 12px;
+    cursor: pointer;
+    text-transform: capitalize;
+    transition: color .15s, border-color .15s, background .15s, opacity .15s;
+  }
+  .filter-pill:hover { color: var(--ink); border-color: var(--ink-dim); }
+  .filter-pill.selected {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+    font-weight: 600;
+  }
+  .filter-pill.loading { opacity: 0.6; cursor: wait; }
+  /* Tiny live-preview spinner overlay */
+  .drop.loading::after {
+    content: ''; position: absolute; inset: 0;
+    background: rgba(10,10,10,0.35);
+    backdrop-filter: blur(2px);
+  }
+  .drop.loading .ph-spin {
+    position: absolute; z-index: 2;
+    width: 20px; height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
   details.advanced {
     margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px;
   }
@@ -86,10 +242,16 @@
     background: var(--accent); color: #000;
     border: 0; border-radius: 999px;
     padding: 12px 16px; font-weight: 600; font-size: 14px;
-    cursor: pointer; transition: background .15s, opacity .15s;
+    cursor: pointer; transition: background .15s, opacity .15s, transform .08s;
   }
-  button.go:hover { background: #1ed760; }
-  button.go:disabled { background: var(--panel-2); color: var(--ink-dim); cursor: not-allowed; }
+  button.go:hover { background: var(--accent-hover); }
+  button.go:active { transform: translateY(1px); }
+  button.go:disabled { background: var(--panel-2); color: var(--ink-dim); cursor: not-allowed; transform: none; }
+  /* AI Generate button uses the purple "second path" accent so the two ways
+     into the tool — upload (green) vs generate (purple) — feel distinct. */
+  #aiGo { background: var(--purple); color: #000; }
+  #aiGo:hover { background: var(--purple-hover); }
+  #aiGo:disabled { background: var(--panel-2); color: var(--ink-dim); }
 
   .result { display: flex; flex-direction: column; gap: 12px; }
   .result video {
@@ -113,27 +275,55 @@
 </style>
 </head>
 <body>
-  <h1>55 Music Canvas Generator</h1>
-  <p class="subtitle">Photo → Spotify Canvas (9:16 MP4, looping, full-frame)</p>
+  <header class="app-header">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="20" cy="20" r="20" fill="#1ED760"/>
+        <rect x="12.5" y="14.5" width="3.5" height="11" rx="1" fill="#121212"/>
+        <rect x="18.25" y="10" width="3.5" height="20" rx="1" fill="#121212"/>
+        <rect x="24" y="16.5" width="3.5" height="7" rx="1" fill="#121212"/>
+      </svg>
+      <span class="brand-name">Canvas Buddy</span>
+      <span class="brand-sub">9:16 · 1080×1920 · MP4</span>
+    </div>
+  </header>
 
   <form class="app" id="form">
     <section class="panel">
+      <div class="panel-top">
+        <button type="button" class="icon-btn" id="settingsBtn" title="Settings">⚙</button>
+      </div>
+
       <label class="drop" id="drop">
         <span class="hint" id="hint">Drop a photo here<br/><small>or click to choose</small></span>
-        <input type="file" id="file" accept="image/*" required />
+        <input type="file" id="file" accept="image/*" />
       </label>
+
+      <div class="ai-pane" id="aiPane">
+        <div class="ai-section-title">✨ Or generate with AI (Flux)</div>
+        <textarea id="aiPrompt" placeholder="Describe the image — e.g. 'moody portrait of a woman in neon-lit Tokyo alley at night, cinematic, 35mm'"></textarea>
+        <button type="button" class="go" id="aiGo">Generate Image</button>
+        <div class="ai-quality-row">
+          <label for="aiQuality">Model</label>
+          <select id="aiQuality" title="Flux model tier (affects cost and quality)">
+            <option value="fal-ai/flux/schnell">Schnell — fastest (~$0.003)</option>
+            <option value="fal-ai/flux/dev">Dev — balanced (~$0.025)</option>
+            <option value="fal-ai/flux-pro/v1.1" selected>Pro 1.1 — best quality (~$0.04)</option>
+          </select>
+        </div>
+        <div class="ai-status" id="aiStatus"></div>
+      </div>
 
       <label class="field" for="animation">Animation</label>
       <select id="animation" name="animation"></select>
       <div class="desc" id="animDesc"></div>
 
+      <label class="field">Filter</label>
+      <div class="filter-pills" id="filterPills"></div>
+      <div class="desc" id="filterDesc"></div>
+
       <label class="field" for="duration">Duration: <span class="val" id="durval">6</span>s</label>
       <input type="range" id="duration" name="duration" min="3" max="8" step="1" value="6" />
-
-      <div class="row-inline">
-        <input type="checkbox" id="particles" name="particles" />
-        <label for="particles">Particle shimmer</label>
-      </div>
 
       <details class="advanced">
         <summary>Advanced</summary>
@@ -154,45 +344,221 @@
     </section>
   </form>
 
+  <dialog id="settingsModal">
+    <h3>Settings</h3>
+    <p>Your fal.ai API key is stored locally in <code>~/.canvas-maker/config.json</code> with permissions 0600. It's never logged or sent anywhere except to fal.ai for Flux image generation.</p>
+    <label class="field" for="settingsKey">fal.ai API Key</label>
+    <input type="password" id="settingsKey" placeholder="key_..." autocomplete="off" />
+    <div class="key-status" id="keyStatus"></div>
+    <div class="actions">
+      <button type="button" id="settingsCancel">Cancel</button>
+      <button type="button" id="settingsSave" class="primary">Save</button>
+    </div>
+  </dialog>
+
 <script>
 const $ = (id) => document.getElementById(id);
 const drop = $('drop'), file = $('file'), hint = $('hint'), go = $('go');
 const statusEl = $('status'), durVal = $('durval'), dur = $('duration');
 const animationSel = $('animation'), layoutSel = $('layout');
-const animDesc = $('animDesc');
+const filterPills = $('filterPills');
+const animDesc = $('animDesc'), filterDesc = $('filterDesc');
 const result = $('result'), empty = $('empty');
+const aiPrompt = $('aiPrompt');
+const aiGo = $('aiGo'), aiStatus = $('aiStatus'), aiQuality = $('aiQuality');
+const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
+const settingsKey = $('settingsKey'), keyStatus = $('keyStatus');
 
-let previewURL = null;
+let currentPhotoFile = null;
+let currentPreviewURL = null;   // blob URL currently rendered in the drop zone
 let currentMP4 = null;
 let animDescriptions = {};
+let filterDescriptions = {};
+let filterLabels = {};
+let filterList = [];
+let selectedFilter = 'none';
+// Increments on each preview request so a slow earlier request can't overwrite
+// a fresher one when the user clicks pills quickly.
+let previewToken = 0;
 
-fetch('/api/options').then(r => r.json()).then(({ animations, defaults }) => {
+const titleCase = (s) => s.replace(/\w\S*/g, t => t[0].toUpperCase() + t.slice(1));
+const pillLabel = (name) => filterLabels[name] || titleCase(name);
+
+fetch('/api/options').then(r => r.json()).then(({ animations, filters, defaults }) => {
   for (const { name, description } of animations) {
     animDescriptions[name] = description;
-    const label = `${name[0].toUpperCase()}${name.slice(1)}`;
-    animationSel.add(new Option(label, name, name === defaults.animation, name === defaults.animation));
+    animationSel.add(new Option(titleCase(name), name, name === defaults.animation, name === defaults.animation));
   }
+  filterList = (filters || []).map(f => f.name);
+  for (const { name, label, description } of (filters || [])) {
+    filterLabels[name] = label;
+    filterDescriptions[name] = description;
+  }
+  selectedFilter = defaults.look || 'none';
   animDesc.textContent = animDescriptions[animationSel.value] || '';
+  filterDesc.textContent = filterDescriptions[selectedFilter] || '';
   if (defaults.layout) layoutSel.value = defaults.layout;
+  renderFilterPills();
 });
 
 animationSel.addEventListener('change', () => {
   animDesc.textContent = animDescriptions[animationSel.value] || '';
 });
 
+function renderFilterPills() {
+  filterPills.innerHTML = '';
+  for (const name of filterList) {
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'filter-pill' + (name === selectedFilter ? ' selected' : '');
+    pill.dataset.filter = name;
+    pill.textContent = pillLabel(name);
+    pill.addEventListener('click', () => onPickFilter(name));
+    filterPills.appendChild(pill);
+  }
+}
+
+function setSelectedPill(name) {
+  for (const pill of filterPills.querySelectorAll('.filter-pill')) {
+    pill.classList.toggle('selected', pill.dataset.filter === name);
+  }
+}
+
+async function onPickFilter(name) {
+  selectedFilter = name;
+  setSelectedPill(name);
+  filterDesc.textContent = filterDescriptions[name] || '';
+  if (currentPhotoFile) await renderLivePreview(name);
+}
+
+// Fetch a single-frame preview of `filter` applied to the current photo and
+// swap it into the drop zone. Each call is ~40-100ms server-side.
+async function renderLivePreview(filter) {
+  if (!currentPhotoFile) return;
+  const myToken = ++previewToken;
+  drop.classList.add('loading');
+  drop.querySelector('.ph-spin')?.remove();
+  const spinner = document.createElement('div');
+  spinner.className = 'ph-spin';
+  drop.appendChild(spinner);
+
+  try {
+    const fd = new FormData();
+    fd.append('image', currentPhotoFile);
+    fd.append('filter', filter);
+    const res = await fetch('/api/preview', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error('preview failed');
+    const blob = await res.blob();
+    if (myToken !== previewToken) return; // a newer preview is in flight; abandon
+    const url = URL.createObjectURL(blob);
+    if (currentPreviewURL) URL.revokeObjectURL(currentPreviewURL);
+    currentPreviewURL = url;
+    let img = drop.querySelector('img');
+    if (!img) {
+      img = document.createElement('img');
+      drop.appendChild(img);
+    }
+    img.src = url;
+    hint.style.display = 'none';
+  } catch (_) {
+    // Leave the existing preview in place on transient errors.
+  } finally {
+    if (myToken === previewToken) {
+      drop.classList.remove('loading');
+      drop.querySelector('.ph-spin')?.remove();
+    }
+  }
+}
+
 dur.addEventListener('input', () => durVal.textContent = dur.value);
 
 function setImage(f) {
   if (!f) return;
-  if (previewURL) URL.revokeObjectURL(previewURL);
-  previewURL = URL.createObjectURL(f);
-  drop.querySelectorAll('img').forEach(n => n.remove());
-  const img = document.createElement('img');
-  img.src = previewURL;
-  drop.appendChild(img);
-  hint.style.display = 'none';
+  currentPhotoFile = f;
   go.disabled = false;
+  // Render the live 9:16 preview at the current filter (defaults to 'none' on
+  // first drop, which still applies the canvas crop so what they see matches
+  // what they'll get).
+  renderLivePreview(selectedFilter);
 }
+
+// ---- Settings modal -------------------------------------------------------
+async function refreshKeyStatus() {
+  try {
+    const r = await fetch('/api/settings');
+    const s = await r.json();
+    if (s.hasApiKey) {
+      keyStatus.textContent = `Currently saved: ${s.keyPreview}. Leave blank to keep, paste a new key to replace.`;
+    } else {
+      keyStatus.textContent = 'No key saved yet. Get one at fal.ai/dashboard/keys';
+    }
+  } catch {
+    keyStatus.textContent = '';
+  }
+}
+settingsBtn.addEventListener('click', async () => {
+  settingsKey.value = '';
+  await refreshKeyStatus();
+  settingsModal.showModal();
+});
+$('settingsCancel').addEventListener('click', () => settingsModal.close());
+$('settingsSave').addEventListener('click', async () => {
+  const key = settingsKey.value.trim();
+  const body = { falModel: aiQuality.value };
+  if (key) body.falApiKey = key;
+  try {
+    const r = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Save failed');
+    settingsModal.close();
+  } catch (err) {
+    keyStatus.textContent = err.message;
+  }
+});
+
+// ---- AI image generation --------------------------------------------------
+// Generated image flows directly into the drop-zone preview via setImage(),
+// so it goes through the same filter-preview pipeline as an uploaded photo.
+// The AI pane below stays as prompt UI only — no duplicate image display.
+aiGo.addEventListener('click', async () => {
+  const prompt = aiPrompt.value.trim();
+  if (!prompt) {
+    aiStatus.textContent = 'Type a prompt first.';
+    aiStatus.className = 'ai-status error';
+    return;
+  }
+  aiGo.disabled = true;
+  aiStatus.className = 'ai-status';
+  aiStatus.innerHTML = '<span class="spin"></span> Generating image — usually 10-30s…';
+  fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ falModel: aiQuality.value }),
+  }).catch(() => {});
+  try {
+    const r = await fetch('/api/generate-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${r.status}`);
+    }
+    const blob = await r.blob();
+    aiStatus.textContent = '';
+    const f = new File([blob], 'ai-image.png', { type: 'image/png' });
+    setImage(f);
+  } catch (err) {
+    aiStatus.className = 'ai-status error';
+    aiStatus.textContent = err.message;
+  } finally {
+    aiGo.disabled = false;
+  }
+});
 
 drop.addEventListener('click', (e) => { if (e.target !== file) file.click(); });
 file.addEventListener('change', () => setImage(file.files[0]));
@@ -208,17 +574,17 @@ drop.addEventListener('drop', (e) => {
 
 $('form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  if (!file.files[0]) return;
+  if (!currentPhotoFile) return;
 
   go.disabled = true;
   statusEl.innerHTML = '<span class="spin"></span>Rendering…';
 
   const fd = new FormData();
-  fd.append('image', file.files[0]);
+  fd.append('image', currentPhotoFile);
   fd.append('animation', animationSel.value);
+  fd.append('filter', selectedFilter);
   fd.append('layout', layoutSel.value);
   fd.append('duration', dur.value);
-  if ($('particles').checked) fd.append('particles', 'true');
 
   const started = performance.now();
   try {
@@ -235,7 +601,7 @@ $('form').addEventListener('submit', async (e) => {
     empty.style.display = 'none';
     result.innerHTML = `
       <video src="${currentMP4}" autoplay muted loop playsinline></video>
-      <div class="meta"><span>${sizeMB} MB • ${elapsed}s render</span><span>${animationSel.value} / ${layoutSel.value} / ${dur.value}s</span></div>
+      <div class="meta"><span>${sizeMB} MB • ${elapsed}s render</span><span>${animationSel.value} • ${selectedFilter} • ${dur.value}s</span></div>
       <a class="dl" href="${currentMP4}" download="canvas.mp4">Download MP4</a>
     `;
     statusEl.textContent = '';

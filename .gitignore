@@ -2,6 +2,8 @@ node_modules/
 release/
 dist/
 *.dmg
+.canvas-maker/
+config.json
 *.pkg
 *.exe
 *.zip

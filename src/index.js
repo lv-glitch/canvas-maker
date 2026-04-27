@@ -21,6 +21,91 @@ export const ANIMATION_META = Object.freeze({
 });
 export const LAYOUTS = ['fill', 'fit', 'letterbox'];
 
+// Photo-look filters. Each is a per-frame transform applied AFTER motion.
+// Most are flat FFmpeg chains in FILTER_CHAINS below; `softfocus` and
+// `shimmer` need split + blend, so they're handled inline in buildFilterGraph
+// and generatePreview as special cases.
+export const FILTERS = [
+  'none', 'goldenhour', 'sunkissed', 'coast', 'softwash',
+  'parisian', 'analog', 'noir', 'retro', 'vhs',
+  'softfocus', 'glitch', 'shimmer',
+];
+export const FILTER_META = Object.freeze({
+  none:       { label: 'Original',    description: 'No filter applied' },
+  goldenhour: { label: 'Golden Hour', description: 'Bright highlights, deep shadows, boosted saturation' },
+  sunkissed:  { label: 'Sunkissed',   description: 'Warm tones, lifted contrast, glowing skin tones' },
+  coast:      { label: 'Coast',       description: 'Cool blues and greens, desaturated reds, airy and editorial' },
+  softwash:   { label: 'Soft Wash',   description: 'Subtle desaturation, slightly faded — the "no filter" filter' },
+  parisian:   { label: 'Parisian',    description: 'Soft, faded, warm pink — French girl aesthetic' },
+  analog:     { label: 'Analog',      description: 'Film emulation — lifted blacks, warm midtones, grain' },
+  noir:       { label: 'Noir',        description: 'High-contrast black and white' },
+  retro:      { label: 'Retro',       description: 'Orange-shifted shadows, muted highlights, grain' },
+  vhs:        { label: 'VHS',         description: 'Camcorder — subtle RGB shift, faded, warm noise' },
+  softfocus:  { label: 'Soft Focus',  description: 'Soft glow / beauty bloom — flattering halation' },
+  glitch:     { label: 'Glitch',      description: 'RGB split / chromatic aberration — vivid digital glitch' },
+  shimmer:    { label: 'Shimmer',     description: 'Animated sparkle overlay (animates in the final canvas)' },
+});
+
+// Flat filter chains keyed by internal filter name.
+const FILTER_CHAINS = Object.freeze({
+  none: '',
+  goldenhour:
+    // Push saturation + contrast hard, deepen shadows, brighten highlights,
+    // and add a warm cast in midtones.
+    `eq=contrast=1.30:saturation=1.55,` +
+    `curves=master='0/0 0.20/0.16 0.5/0.58 0.80/0.88 1/1',` +
+    `colorbalance=rm=0.07:bm=-0.06:rh=0.04:bh=-0.04`,
+  sunkissed:
+    // Warm peachy skin glow — strong red lift in midtones, slight desaturate
+    // of blue, soft contrast bump.
+    `eq=contrast=1.18:saturation=1.42,` +
+    `colorbalance=rs=0.15:gs=0.05:bs=-0.15:rm=0.12:gm=0.04:bm=-0.10:rh=0.06:bh=-0.05,` +
+    `curves=master='0/0 0.4/0.46 0.7/0.75 1/0.98'`,
+  coast:
+    // Cool, airy editorial — kill warm tones, push blue/green, lift overall.
+    `colorbalance=rh=-0.18:rm=-0.13:rs=-0.08:gh=0.10:gm=0.06:bh=0.22:bm=0.14:bs=0.08,` +
+    `eq=contrast=1.10:saturation=1.05:brightness=0.04,` +
+    `curves=master='0/0.04 0.5/0.54 1/1'`,
+  softwash:
+    // Visibly desaturated, lifted blacks, slightly cool — the "I forgot to
+    // turn off auto white balance" gentle look.
+    `curves=master='0/0.10 1/0.92',` +
+    `eq=saturation=0.55:contrast=0.88,` +
+    `colorbalance=bs=0.04:bm=0.03`,
+  parisian:
+    // Soft, faded, distinctly pink-warm.
+    `curves=master='0/0.10 0.5/0.55 1/0.93',` +
+    `colorbalance=rs=0.12:gs=-0.04:bs=0.06:rm=0.10:gm=-0.02:bm=-0.04:rh=0.05,` +
+    `eq=contrast=0.85:saturation=0.85`,
+  analog:
+    // Lifted blacks (curves), warm midtones, mild grain.
+    `curves=master='0/0.16 0.3/0.32 0.7/0.72 1/0.92',` +
+    `colorbalance=rs=0.10:gs=0.05:bs=-0.10:rm=0.08:gm=0.02:bm=-0.08,` +
+    `eq=saturation=0.95,` +
+    `noise=alls=14:allf=t`,
+  noir:
+    // High-contrast B&W with deep shadows.
+    `hue=s=0,eq=contrast=1.45:gamma=0.90`,
+  retro:
+    // Strong orange shift in shadows + faded highlights.
+    `curves=master='0/0.15 0.5/0.55 1/0.90',` +
+    `colorbalance=rs=0.22:gs=0.06:bs=-0.20:rm=0.12:gm=-0.02:bm=-0.10:rh=0.04,` +
+    `eq=saturation=0.85,noise=alls=10:allf=t`,
+  vhs:
+    `rgbashift=rh=3:bh=-3,` +
+    `eq=saturation=0.82:contrast=0.92,` +
+    `colorbalance=rm=0.05:bm=-0.05,` +
+    `noise=alls=18:allf=t,gblur=sigma=0.4`,
+  glitch:
+    // Aggressive horizontal channel split (red right, blue left), slight
+    // green vertical drift, hue rotated, saturation/contrast pushed —
+    // gives a digital chromatic-aberration glitch look.
+    `rgbashift=rh=12:bh=-10:gv=2,` +
+    `hue=h=10,` +
+    `eq=contrast=1.18:saturation=1.30,` +
+    `noise=alls=4:allf=t`,
+});
+
 // Spotify Canvas spec (from support.spotify.com/us/artists/article/canvas-guidelines):
 //   - 3-8 second MP4, vertical 9:16, 720-1080px tall.
 //   - No rapid cuts or intense flashing.
@@ -116,25 +201,51 @@ function buildMotion({ animation, frames, fps, duration, outW, outH, prepW, prep
   }
 }
 
-function buildFilterGraph({ animation, duration, fps, width, height, particles, layout, fgScale }) {
+function buildFilterGraph({ animation, duration, fps, width, height, layout, fgScale, look }) {
   const frames = Math.round(duration * fps);
 
-  // Particles use source-filtered animated noise, kept subtle to respect Canvas guideline
-  // ("avoid rapid cuts or intense flashing graphics").
-  const addParticles = (mainChain) => {
-    if (!particles) return { filter: mainChain, outputLabel: '[main]' };
-    const sparkle =
-      `color=black:s=${width}x${height}:d=${duration}:r=${fps},` +
-      `noise=alls=60:allf=t+p,` +
-      `lutyuv=y='gt(val\\,248)*220':u=128:v=128,` +
-      `gblur=sigma=1.4`;
-    return {
-      filter:
-        `${mainChain};` +
-        `${sparkle}[spark];` +
-        `[main][spark]blend=all_mode=screen:all_opacity=0.25,format=yuv420p[out]`,
-      outputLabel: '[out]',
-    };
+  // Post-processing: apply the selected look filter (color, blur, shimmer, etc.)
+  // The motion chain always ends with [main]; this function appends the look
+  // and returns the final graph plus the output label to map.
+  const appendPostprocess = (mainChain) => {
+    let graph = mainChain;
+    let label = '[main]';
+
+    if (look && look !== 'none') {
+      if (look === 'softfocus') {
+        // Dreamy, soft, slightly washed look. Earlier version used split +
+        // gblur + screen-blend, which dragged darks toward magenta on
+        // low-light photos. This simpler chain (blur + light/desaturated
+        // tone curve) reads as "soft focus" without the color cast.
+        graph +=
+          `;${label}gblur=sigma=2.0,` +
+          `eq=brightness=0.04:saturation=0.92:contrast=0.88,` +
+          `format=yuv420p[styled]`;
+      } else if (look === 'shimmer') {
+        // Animated sparkles. `screen` blend was dragging chroma pink because
+        // FFmpeg evaluates the blend per-plane and the dense-noise/opaque
+        // luma layer + opacity-mix on chroma produced a tint. `lighten`
+        // (per-pixel max) keeps the photo's color where there's no sparkle
+        // and shows the bright sparkle where there is. Tuned to be subtle.
+        const sparkle =
+          `color=black:s=${width}x${height}:d=${duration}:r=${fps},` +
+          `noise=alls=22:allf=t+p,` +
+          `lutyuv=y='gt(val\\,252)*255':u=128:v=128,` +
+          `gblur=sigma=0.8`;
+        graph +=
+          `;${sparkle}[shimmer_layer];` +
+          `${label}[shimmer_layer]blend=all_mode=lighten:all_opacity=0.55,` +
+          `format=yuv420p[styled]`;
+      } else {
+        const chain = FILTER_CHAINS[look];
+        if (chain) {
+          graph += `;${label}${chain},format=yuv420p[styled]`;
+        }
+      }
+      label = '[styled]';
+    }
+
+    return { filter: graph, outputLabel: label };
   };
 
   // FILL: crop the square cover into the 9:16 frame and animate the whole thing.
@@ -149,7 +260,7 @@ function buildFilterGraph({ animation, duration, fps, width, height, particles, 
       animation, frames, fps, duration,
       outW: width, outH: height, prepW, prepH,
     });
-    return addParticles(`[0:v]${prep},${motion},format=yuv420p[main]`);
+    return appendPostprocess(`[0:v]${prep},${motion},format=yuv420p[main]`);
   }
 
   // fit / letterbox: animate a square foreground and composite onto a full-frame background.
@@ -189,7 +300,7 @@ function buildFilterGraph({ animation, duration, fps, width, height, particles, 
     throw new Error(`Unknown layout "${layout}". Must be one of: ${LAYOUTS.join(', ')}`);
   }
 
-  return addParticles(chain);
+  return appendPostprocess(chain);
 }
 
 export async function generateCanvas({
@@ -202,7 +313,7 @@ export async function generateCanvas({
   height = SPOTIFY_DEFAULTS.height,
   layout = SPOTIFY_DEFAULTS.layout,
   fgScale = SPOTIFY_DEFAULTS.fgScale,
-  particles = false,
+  look = 'none',
   crf = SPOTIFY_DEFAULTS.crf,
   maxBitrateKbps = SPOTIFY_DEFAULTS.maxBitrateKbps,
   preset = SPOTIFY_DEFAULTS.preset,
@@ -214,12 +325,15 @@ export async function generateCanvas({
   if (!LAYOUTS.includes(layout)) {
     throw new Error(`Unknown layout "${layout}". Must be one of: ${LAYOUTS.join(', ')}`);
   }
+  if (!FILTERS.includes(look)) {
+    throw new Error(`Unknown filter "${look}". Must be one of: ${FILTERS.join(', ')}`);
+  }
   if (duration < 3 || duration > 8) {
     throw new Error(`duration must be between 3 and 8 seconds per Spotify Canvas spec (got ${duration})`);
   }
 
   const { filter, outputLabel } = buildFilterGraph({
-    animation, duration, fps, width, height, particles, layout, fgScale,
+    animation, duration, fps, width, height, layout, fgScale, look,
   });
 
   const args = [
@@ -260,6 +374,72 @@ export async function generateCanvas({
       if (code !== 0) {
         const tail = stderr.trim().split('\n').slice(-6).join('\n');
         reject(new Error(`ffmpeg exited ${code}:\n${tail}`));
+      } else {
+        resolve({ input, output });
+      }
+    });
+  });
+}
+
+// Render a single-frame still preview of the look filter applied to a photo,
+// at small size, output as JPEG. Used by the UI's filter-thumbnail strip so
+// users can see all 11 filters side-by-side without rendering a full video.
+export async function generatePreview({
+  input,
+  output,
+  look = 'none',
+  width = 270,
+  height = 480, // 9:16
+}) {
+  if (!FILTERS.includes(look)) {
+    throw new Error(`Unknown filter "${look}". Must be one of: ${FILTERS.join(', ')}`);
+  }
+
+  // Same prep as the canvas pipeline so the preview matches the final output
+  // (just smaller and without motion).
+  const prep =
+    `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase:flags=lanczos,` +
+    `crop=${width}:${height},setsar=1`;
+
+  let chain;
+  if (look === 'softfocus') {
+    // Match the canvas-pipeline soft focus: blur + slight desat + brightness
+    // bump. No screen-blend, so no magenta cast on dark images.
+    chain =
+      `${prep},gblur=sigma=1.6,` +
+      `eq=brightness=0.04:saturation=0.92:contrast=0.88[out]`;
+  } else if (look === 'shimmer') {
+    // Lighten blend instead of screen — kills the pink chroma wash.
+    chain =
+      `${prep}[base];` +
+      `color=black:s=${width}x${height}:d=1,noise=alls=22:allf=t+p,` +
+      `lutyuv=y='gt(val\\,252)*255':u=128:v=128,gblur=sigma=0.8[shimmer_layer];` +
+      `[base][shimmer_layer]blend=all_mode=lighten:all_opacity=0.55[out]`;
+  } else if (look !== 'none' && FILTER_CHAINS[look]) {
+    chain = `${prep},${FILTER_CHAINS[look]}[out]`;
+  } else {
+    chain = `${prep}[out]`;
+  }
+
+  const args = [
+    '-y',
+    '-i', input,
+    '-filter_complex', chain,
+    '-map', '[out]',
+    '-frames:v', '1',
+    '-q:v', '5', // JPEG quality (1=best, 31=worst). 5 ≈ 80% JPEG.
+    output,
+  ];
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn(ffmpegPath, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+    proc.stderr.on('data', (d) => { stderr += d.toString(); });
+    proc.on('error', reject);
+    proc.on('close', (code) => {
+      if (code !== 0) {
+        const tail = stderr.trim().split('\n').slice(-4).join('\n');
+        reject(new Error(`ffmpeg preview exited ${code}:\n${tail}`));
       } else {
         resolve({ input, output });
       }

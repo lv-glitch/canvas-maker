@@ -1,0 +1,39 @@
+# Fly.io config for the Canvas Buddy backend (FFmpeg + Express).
+# `fly launch` will replace `<APP_NAME>` and pick a region for you. Edit if you
+# already know what you want — e.g. `app = "canvas-buddy-api"` and primary_region
+# closest to lv (sjc = San Jose).
+
+app = "canvas-buddy-api"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "3737"
+  NODE_ENV = "production"
+
+[http_service]
+  internal_port = 3737
+  force_https = true
+
+  # Auto-stop when idle, auto-start on inbound request. Costs nothing while idle;
+  # 1-2s cold start when a generation request hits a stopped machine.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 8
+    hard_limit = 16
+
+# A single shared-cpu-1x machine with 1GB RAM — enough for one or two parallel
+# FFmpeg jobs. Bump to performance-1x or 2GB if rendering queues build up.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+
+# Secrets are NOT defined here. Set them at deploy time:
+#   fly secrets set FAL_API_KEY=<key>
+# loadSettings() in src/settings.js prefers env vars over the config file.
