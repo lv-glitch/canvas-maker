@@ -209,11 +209,15 @@ export function createApp() {
       const layout = LAYOUTS.includes(req.body.layout) ? req.body.layout : SPOTIFY_DEFAULTS.layout;
       const look = FILTERS.includes(req.body.filter) ? req.body.filter : 'none';
       const duration = Math.min(8, Math.max(3, Number(req.body.duration) || SPOTIFY_DEFAULTS.duration));
+      // Watermark is applied unless the caller explicitly passes "false".
+      // Frontend sets it to "false" only for Pro users (and once per-canvas
+      // unlocks ship, for paid one-off canvases too).
+      const watermark = String(req.body.watermark) !== 'false';
 
       await generateCanvas({
         input: req.file.path,
         output: outputPath,
-        animation, layout, look, duration,
+        animation, layout, look, duration, watermark,
       });
 
       // Verify the rendered MP4 against Spotify's Canvas spec before shipping.

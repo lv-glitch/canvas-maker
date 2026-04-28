@@ -8,7 +8,7 @@ FROM node:20-slim AS base
 # containers can be flaky across architectures. Installing ffmpeg via apt gives
 # us a known-good Linux build the runtime can always count on.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
+ && apt-get install -y --no-install-recommends ffmpeg ca-certificates fonts-dejavu-core \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

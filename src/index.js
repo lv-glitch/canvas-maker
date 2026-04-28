@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import ffmpegPathStatic from 'ffmpeg-static';
 
 // When packaged inside an Electron .asar, ffmpeg-static's path points into the asar
@@ -201,7 +202,49 @@ function buildMotion({ animation, frames, fps, duration, outW, outH, prepW, prep
   }
 }
 
-function buildFilterGraph({ animation, duration, fps, width, height, layout, fgScale, look }) {
+// Watermark — drawtext requires an explicit font file. Probed at runtime;
+// first hit wins. fonts-dejavu-core is in the Docker image, ships with most
+// Linux distros, and is also widely available on macOS via Homebrew. Local
+// mac dev without a TTF in any of these paths gets a console warning and
+// renders without the watermark — a graceful no-op rather than a crash.
+const WATERMARK_FONT_CANDIDATES = [
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+  '/opt/homebrew/share/fonts/DejaVuSans-Bold.ttf',
+  '/usr/local/share/fonts/DejaVuSans-Bold.ttf',
+  '/Library/Fonts/Arial Bold.ttf',
+  '/System/Library/Fonts/Supplemental/Arial Bold.ttf',
+];
+
+function findWatermarkFont() {
+  for (const p of WATERMARK_FONT_CANDIDATES) {
+    if (existsSync(p)) return p;
+  }
+  return null;
+}
+
+// Drawtext filter for the bottom-right wordmark. Tuned for 1080×1920 output
+// — readable but unobtrusive, with a soft black drop-shadow so it doesn't
+// vanish against bright backgrounds.
+function watermarkFilter() {
+  const font = findWatermarkFont();
+  if (!font) {
+    console.warn('[canvas-maker] no watermark font found; rendering without watermark');
+    return null;
+  }
+  // FFmpeg drawtext requires single quotes around fontfile and text, with
+  // colons/backslashes escaped via backslash. The wordmark itself is plain
+  // ASCII so we don't need extra escaping.
+  return (
+    `drawtext=fontfile='${font.replace(/:/g, '\\:').replace(/'/g, "\\'")}':` +
+    `text='canvasbuddy.io':` +
+    `fontcolor=white@0.55:` +
+    `fontsize=44:` +
+    `x=w-tw-32:y=h-th-36:` +
+    `shadowcolor=black@0.4:shadowx=2:shadowy=2`
+  );
+}
+
+function buildFilterGraph({ animation, duration, fps, width, height, layout, fgScale, look, watermark }) {
   const frames = Math.round(duration * fps);
 
   // Post-processing: apply the selected look filter (color, blur, shimmer, etc.)
@@ -243,6 +286,16 @@ function buildFilterGraph({ animation, duration, fps, width, height, layout, fgS
         }
       }
       label = '[styled]';
+    }
+
+    // Free-tier watermark — applied last so it sits above the look filter and
+    // never gets blurred/colour-shifted by it.
+    if (watermark) {
+      const wm = watermarkFilter();
+      if (wm) {
+        graph += `;${label}${wm},format=yuv420p[wmd]`;
+        label = '[wmd]';
+      }
     }
 
     return { filter: graph, outputLabel: label };
@@ -317,6 +370,7 @@ export async function generateCanvas({
   crf = SPOTIFY_DEFAULTS.crf,
   maxBitrateKbps = SPOTIFY_DEFAULTS.maxBitrateKbps,
   preset = SPOTIFY_DEFAULTS.preset,
+  watermark = false,
   overwrite = true,
 }) {
   if (!ANIMATIONS.includes(animation)) {
@@ -333,7 +387,7 @@ export async function generateCanvas({
   }
 
   const { filter, outputLabel } = buildFilterGraph({
-    animation, duration, fps, width, height, layout, fgScale, look,
+    animation, duration, fps, width, height, layout, fgScale, look, watermark,
   });
 
   const args = [
