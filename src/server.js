@@ -48,6 +48,33 @@ export function createApp() {
   app.use(express.static(join(__dirname, '..', 'public')));
   app.use(express.json({ limit: '4kb' }));
 
+  // Auth gate. Accepts either:
+  //   - X-Backend-Token: $BACKEND_TOKEN  (used by canvas-buddy server-side
+  //     proxy routes — doesn't reach the browser, so it's a true secret)
+  //   - turnstileToken in body  (used by the marketing-site demo where
+  //     visitors don't have a Clerk session — Cloudflare Turnstile is the
+  //     bot-prevention layer instead)
+  // Fail-open when BACKEND_TOKEN is unset so local dev / Electron keep
+  // working. Production sets the secret via fly secrets.
+  async function requireAuth(req, res, next) {
+    const expected = process.env.BACKEND_TOKEN;
+    if (!expected) return next(); // fail-open in dev
+
+    const headerToken = req.header('x-backend-token');
+    if (headerToken && headerToken === expected) return next();
+
+    // Fall through to Turnstile — only valid for endpoints whose body has
+    // a turnstileToken field (we expect /api/generate-image to set it; for
+    // others the browser-direct path also wires it before this middleware
+    // becomes active in production).
+    if (req.body?.turnstileToken) {
+      const remoteIP = req.headers['fly-client-ip'] || req.headers['x-forwarded-for']?.split(',')[0]?.trim();
+      const verdict = await verifyTurnstile(req.body.turnstileToken, remoteIP);
+      if (verdict.ok) return next();
+    }
+    res.status(401).json({ error: 'Auth required.' });
+  }
+
   // ---- Settings ----------------------------------------------------------
   // GET reports configuration state without ever exposing the raw key.
 
@@ -87,7 +114,7 @@ export function createApp() {
   // exactly like an uploaded photo (sets it as currentPhotoFile, kicks off
   // filter previews, etc.).
 
-  app.post('/api/generate-image', async (req, res) => {
+  app.post('/api/generate-image', requireAuth, async (req, res) => {
     // Bot check before doing any expensive work — fal.ai is the prime
     // abuse target on this site (~$0.06 per call). The verifier fails open
     // when TURNSTILE_SECRET isn't set so local dev keeps working.
