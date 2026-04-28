@@ -222,9 +222,14 @@ function findWatermarkFont() {
   return null;
 }
 
-// Drawtext filter for the bottom-right wordmark. Tuned for 1080×1920 output
-// — readable but unobtrusive, with a soft black drop-shadow so it doesn't
-// vanish against bright backgrounds.
+// Drawtext filter for the dead-center wordmark.
+//
+// Why dead-center: Spotify's mobile player overlays its now-playing UI
+// across the bottom ~35% of the Canvas (song title, scrubber, transport
+// controls), and a status bar across the top ~10%. A bottom-right or
+// bottom-left mark is invisible in the actual player, defeating the
+// upgrade hook. The middle is the only zone guaranteed visible across
+// the player's various states (lock screen, full player, mini-player).
 function watermarkFilter() {
   const font = findWatermarkFont();
   if (!font) {
@@ -237,10 +242,10 @@ function watermarkFilter() {
   return (
     `drawtext=fontfile='${font.replace(/:/g, '\\:').replace(/'/g, "\\'")}':` +
     `text='canvasbuddy.io':` +
-    `fontcolor=white@0.55:` +
-    `fontsize=44:` +
-    `x=w-tw-32:y=h-th-36:` +
-    `shadowcolor=black@0.4:shadowx=2:shadowy=2`
+    `fontcolor=white@0.5:` +
+    `fontsize=64:` +
+    `x=(w-tw)/2:y=(h-th)/2:` +
+    `shadowcolor=black@0.45:shadowx=2:shadowy=2`
   );
 }
 
