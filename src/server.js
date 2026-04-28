@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { mkdtemp, unlink, rm } from 'node:fs/promises';
 import { generateCanvas, generatePreview, ANIMATIONS, ANIMATION_META, LAYOUTS, FILTERS, FILTER_META, SPOTIFY_DEFAULTS } from './index.js';
 import { loadSettings, saveSettings, maskKey } from './settings.js';
+import { validateCanvasSpec } from './spec.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MAX_UPLOAD_MB = 25;
@@ -214,6 +215,19 @@ export function createApp() {
         output: outputPath,
         animation, layout, look, duration,
       });
+
+      // Verify the rendered MP4 against Spotify's Canvas spec before shipping.
+      // A bad render here would land in a paying user's library and fail at
+      // Spotify's ingest with no useful error.
+      const violations = await validateCanvasSpec(outputPath);
+      if (violations.length) {
+        console.warn(`[spec] reject canvas: ${violations.join(' | ')}`);
+        await cleanup();
+        return res.status(500).json({
+          error: 'Render did not pass Spotify Canvas spec check.',
+          violations,
+        });
+      }
 
       res.setHeader('Content-Type', 'video/mp4');
       res.setHeader('Content-Disposition', 'inline; filename="canvas.mp4"');
