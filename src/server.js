@@ -9,6 +9,7 @@ import { mkdtemp, unlink, rm } from 'node:fs/promises';
 import { generateCanvas, generatePreview, ANIMATIONS, ANIMATION_META, LAYOUTS, FILTERS, FILTER_META, SPOTIFY_DEFAULTS } from './index.js';
 import { loadSettings, saveSettings, maskKey } from './settings.js';
 import { validateCanvasSpec } from './spec.js';
+import { verifyTurnstile } from './turnstile.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MAX_UPLOAD_MB = 25;
@@ -87,6 +88,16 @@ export function createApp() {
   // filter previews, etc.).
 
   app.post('/api/generate-image', async (req, res) => {
+    // Bot check before doing any expensive work — fal.ai is the prime
+    // abuse target on this site (~$0.06 per call). The verifier fails open
+    // when TURNSTILE_SECRET isn't set so local dev keeps working.
+    const remoteIP = req.headers['fly-client-ip'] || req.headers['x-forwarded-for']?.split(',')[0]?.trim();
+    const verdict = await verifyTurnstile(req.body.turnstileToken, remoteIP);
+    if (!verdict.ok) {
+      console.warn(`[generate-image] turnstile rejected: ${verdict.reason}`);
+      return res.status(403).json({ error: 'Bot verification failed. Refresh the page and try again.' });
+    }
+
     const settings = await loadSettings();
     if (!settings.falApiKey) {
       return res.status(400).json({ error: 'No fal.ai API key configured. Click the gear icon to add one.' });
