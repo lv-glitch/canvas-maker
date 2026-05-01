@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// MUST be the first import — Sentry has to patch node internals before
+// other modules load. Fail-open when SENTRY_DSN is unset.
+import './instrument.js';
+import * as Sentry from '@sentry/node';
 import express from 'express';
 import multer from 'multer';
 import { spawn } from 'node:child_process';
@@ -184,6 +188,7 @@ export function createApp() {
       res.setHeader('X-Image-Bytes', String(buffer.length));
       res.send(buffer);
     } catch (err) {
+      Sentry.captureException(err, { tags: { route: 'generate-image' } });
       const msg = err.name === 'TimeoutError'
         ? 'fal.ai took too long (>2 min). Try again.'
         : err.message;
@@ -227,6 +232,7 @@ export function createApp() {
         await cleanup();
       });
     } catch (err) {
+      Sentry.captureException(err, { tags: { route: 'preview' } });
       await cleanup();
       res.status(500).json({ error: err.message.split('\n').slice(-2).join('\n') });
     }
@@ -264,6 +270,11 @@ export function createApp() {
       const violations = await validateCanvasSpec(outputPath);
       if (violations.length) {
         console.warn(`[spec] reject canvas: ${violations.join(' | ')}`);
+        Sentry.captureMessage('canvas failed Spotify spec check', {
+          level: 'error',
+          tags: { route: 'generate', kind: 'spec-violation' },
+          extra: { violations, animation, layout, look, duration },
+        });
         await cleanup();
         return res.status(500).json({
           error: 'Render did not pass Spotify Canvas spec check.',
@@ -277,11 +288,24 @@ export function createApp() {
         await cleanup();
       });
     } catch (err) {
+      Sentry.captureException(err, {
+        tags: { route: 'generate' },
+        extra: {
+          animation: req.body.animation,
+          layout: req.body.layout,
+          filter: req.body.filter,
+          duration: req.body.duration,
+        },
+      });
       await cleanup();
       const tail = err.message.split('\n').slice(-4).join('\n');
       res.status(500).json({ error: tail });
     }
   });
+
+  // Sentry's express error handler — must be added AFTER all routes so it
+  // catches errors thrown from them. No-op when SENTRY_DSN is unset.
+  Sentry.setupExpressErrorHandler(app);
 
   return app;
 }
