@@ -29,7 +29,7 @@ export const LAYOUTS = ['fill', 'fit', 'letterbox'];
 export const FILTERS = [
   'none', 'goldenhour', 'sunkissed', 'coast', 'softwash',
   'parisian', 'analog', 'noir', 'retro', 'vhs',
-  'softfocus', 'glitch', 'shimmer',
+  'polaroid', 'softfocus', 'glitch', 'shimmer',
 ];
 export const FILTER_META = Object.freeze({
   none:       { label: 'Original',    description: 'No filter applied' },
@@ -42,6 +42,7 @@ export const FILTER_META = Object.freeze({
   noir:       { label: 'Noir',        description: 'High-contrast black and white' },
   retro:      { label: 'Retro',       description: 'Orange-shifted shadows, muted highlights, grain' },
   vhs:        { label: 'VHS',         description: 'Camcorder — subtle RGB shift, faded, warm noise' },
+  polaroid:   { label: 'Polaroid',    description: 'Cream highlights, cool blue-green shadows, faded contrast, light grain + vignette' },
   softfocus:  { label: 'Soft Focus',  description: 'Soft glow / beauty bloom — flattering halation' },
   glitch:     { label: 'Glitch',      description: 'RGB split / chromatic aberration — vivid digital glitch' },
   shimmer:    { label: 'Shimmer',     description: 'Animated sparkle overlay (animates in the final canvas)' },
@@ -97,6 +98,18 @@ const FILTER_CHAINS = Object.freeze({
     `eq=saturation=0.82:contrast=0.92,` +
     `colorbalance=rm=0.05:bm=-0.05,` +
     `noise=alls=18:allf=t,gblur=sigma=0.4`,
+  polaroid:
+    // Vintage instant-film look: lifted blacks, ceiling on highlights (no
+    // pure white — Polaroid whites are cream), cool blue-green shadows,
+    // warm cream highlights, gentle desat + soft contrast, light grain,
+    // subtle vignette. The vignette is `eval=init` so it's computed once
+    // (much faster than per-frame) — fine because the photo is moving but
+    // the vignette is intended to feel like a fixed lens edge.
+    `curves=master='0/0.12 0.3/0.34 0.7/0.72 1/0.90',` +
+    `colorbalance=rs=-0.06:gs=0.04:bs=0.08:rm=0.06:gm=0.02:bm=-0.06:rh=0.10:gh=0.04:bh=-0.06,` +
+    `eq=saturation=0.78:contrast=0.88,` +
+    `noise=alls=9:allf=t,` +
+    `vignette=angle=PI/4.5:eval=init`,
   glitch:
     // Aggressive horizontal channel split (red right, blue left), slight
     // green vertical drift, hue rotated, saturation/contrast pushed —
