@@ -98,18 +98,10 @@ const FILTER_CHAINS = Object.freeze({
     `eq=saturation=0.82:contrast=0.92,` +
     `colorbalance=rm=0.05:bm=-0.05,` +
     `noise=alls=18:allf=t,gblur=sigma=0.4`,
-  polaroid:
-    // Vintage instant-film look: lifted blacks, ceiling on highlights (no
-    // pure white — Polaroid whites are cream), cool blue-green shadows,
-    // warm cream highlights, gentle desat + soft contrast, light grain,
-    // subtle vignette. The vignette is `eval=init` so it's computed once
-    // (much faster than per-frame) — fine because the photo is moving but
-    // the vignette is intended to feel like a fixed lens edge.
-    `curves=master='0/0.12 0.3/0.34 0.7/0.72 1/0.90',` +
-    `colorbalance=rs=-0.06:gs=0.04:bs=0.08:rm=0.06:gm=0.02:bm=-0.06:rh=0.10:gh=0.04:bh=-0.06,` +
-    `eq=saturation=0.78:contrast=0.88,` +
-    `noise=alls=9:allf=t,` +
-    `vignette=angle=PI/4.5:eval=init`,
+  // Polaroid is handled as a special case in buildFilterGraph — it needs
+  // multiple streams (split/overlay) to composite a square-cropped, color-
+  // treated photo inside a white frame on top of a blurred backdrop, which
+  // can't be expressed as a flat chain.
   glitch:
     // Aggressive horizontal channel split (red right, blue left), slight
     // green vertical drift, hue rotated, saturation/contrast pushed —
@@ -293,6 +285,49 @@ function buildFilterGraph({ animation, duration, fps, width, height, layout, fgS
           `;${label}gblur=sigma=2.0,` +
           `eq=brightness=0.04:saturation=0.92:contrast=0.88,` +
           `format=yuv420p[styled]`;
+      } else if (look === 'polaroid') {
+        // Polaroid composite — center-cropped square photo with the polaroid
+        // color treatment, surrounded by white borders (asymmetric: thicker
+        // bottom matches a real instant-film print), placed on a soft-blurred
+        // dimmed copy of the photo as backdrop. Static frame, animated photo
+        // inside (the motion chain already moves the underlying image).
+        //
+        // Card geometry for a 1080-wide canvas:
+        //   image area     800×800   (74% of canvas min dim)
+        //   side borders   70 each
+        //   top border     50
+        //   bottom border  ~207      (~3× top, mimics real polaroid)
+        //   total card     941 × 1057
+        const minDim = Math.min(width, height);
+        const imgSize = Math.round(minDim * 0.74);
+        const cardW = Math.round(imgSize / 0.85);
+        const cardH = Math.round(imgSize / 0.756);
+        const sideBorder = Math.round((cardW - imgSize) / 2);
+        const topBorder = Math.round(cardH * 0.047);
+        graph +=
+          `;${label}split=2[pol_src][bg_src];` +
+          `[pol_src]` +
+            // Bias the square crop upward (y at ~10% from the top, not
+            // centered) so portraits keep their faces. A centered crop on
+            // a 9:16 motion'd frame loses the top ~22% — exactly where
+            // headshot subjects live.
+            `crop=${width}:${width}:0:${Math.round(height * 0.10)},` +
+            `scale=${imgSize}:${imgSize}:flags=lanczos,` +
+            `curves=master='0/0.12 0.3/0.34 0.7/0.72 1/0.90',` +
+            `colorbalance=rs=-0.06:gs=0.04:bs=0.08:rm=0.06:gm=0.02:bm=-0.06:rh=0.10:gh=0.04:bh=-0.06,` +
+            `eq=saturation=0.78:contrast=0.88,` +
+            `noise=alls=9:allf=t,` +
+            `pad=${cardW}:${cardH}:${sideBorder}:${topBorder}:white` +
+          `[card];` +
+          `[bg_src]` +
+            // Downscale-blur-upscale is much faster than gblur at native res.
+            `scale=iw/10:ih/10:flags=lanczos,` +
+            `gblur=sigma=6,` +
+            `scale=${width}:${height}:flags=lanczos,` +
+            `eq=brightness=-0.18:saturation=0.6` +
+          `[backdrop];` +
+          `[backdrop][card]overlay=(W-w)/2:(H-h)/2,` +
+            `format=yuv420p[styled]`;
       } else if (look === 'shimmer') {
         // Animated sparkles. `screen` blend was dragging chroma pink because
         // FFmpeg evaluates the blend per-plane and the dense-noise/opaque
