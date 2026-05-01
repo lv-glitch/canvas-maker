@@ -13,11 +13,11 @@ export const ANIMATIONS = [
 export const ANIMATION_META = Object.freeze({
   zoom:     'Subtle breathing zoom',
   drift:    'Slow floating pan',
-  pulse:    'Zoom with color wash',
+  pulse:    'Sharp rhythmic zoom — beat cadence',
   kenburns: 'Cinematic zoom and pan',
   tilt:     'Gentle side-to-side rocking',
   vertigo:  'Hypnotic zoom with rotation',
-  glow:     'Pulsing brightness and saturation',
+  glow:     'Soft halation bloom over the photo',
   rotate:   'Full 360° rotation',
 });
 export const LAYOUTS = ['fill', 'fit', 'letterbox'];
@@ -146,10 +146,15 @@ function buildMotion({ animation, frames, fps, duration, outW, outH, prepW, prep
       );
     }
     case 'pulse':
+      // Sharp two-beat zoom rhythm. sin^4 keeps the zoom near 1.04 for most
+      // of each beat and snaps up to 1.18 at the peak — reads as a "pulse"
+      // instead of a sine breathing motion. No per-frame color modulation:
+      // earlier `hue=h='6*sin()'` made user-selected look filters appear
+      // unstable across the loop because the wobble ran *before* the look's
+      // color grade and shifted its baseline tones every frame.
       return (
-        `zoompan=z='1.10+0.04*sin(2*PI*on/${frames})'` +
-        `:d=${frames}:x='${xCenter}':y='${yCenter}':s=${size}:fps=${fps},` +
-        `hue=h='6*sin(2*PI*t/${duration})'`
+        `zoompan=z='1.04+0.14*pow(sin(2*PI*on/${frames})\\,4)'` +
+        `:d=${frames}:x='${xCenter}':y='${yCenter}':s=${size}:fps=${fps}`
       );
     case 'kenburns': {
       // Zoom from 1.05 to 1.25 with diagonal drift. (1-cos) envelope = ease in/out, seamless loop.
@@ -183,10 +188,16 @@ function buildMotion({ animation, frames, fps, duration, outW, outH, prepW, prep
       );
     }
     case 'glow':
+      // Motion is a slow bell-curve zoom (one swell per loop, smooth in/out).
+      // The "glow" itself — a soft halation bloom — is layered on top of the
+      // styled output via split + gblur + lighten-blend in buildFilterGraph,
+      // so it composites *after* the user's look filter instead of fighting
+      // it. The earlier inline `eq=brightness=…sin(t)…` ran *before* the look
+      // filter, which shifted the look's baseline tones every frame and made
+      // users perceive look filters as broken under glow.
       return (
-        `zoompan=z='1.06+0.04*sin(2*PI*on/${frames})'` +
-        `:d=${frames}:x='${xCenter}':y='${yCenter}':s=${size}:fps=${fps},` +
-        `eq=brightness='0.08*sin(2*PI*t/${duration})':saturation='1+0.10*sin(2*PI*t/${duration})'`
+        `zoompan=z='1.04+0.10*pow(sin(PI*on/${frames})\\,2)'` +
+        `:d=${frames}:x='${xCenter}':y='${yCenter}':s=${size}:fps=${fps}`
       );
     case 'rotate': {
       // One full turn. Pre-scale to 2.1x output — enough diagonal coverage for any rotation angle.
@@ -291,6 +302,28 @@ function buildFilterGraph({ animation, duration, fps, width, height, layout, fgS
         }
       }
       label = '[styled]';
+    }
+
+    // Glow halation pass — split the styled output, blur one copy, and
+    // screen-blend the bloom back on top with a time-varying alpha. Runs
+    // *after* the look filter so the look's color grade is the static
+    // baseline; glow only adds a rhythmic bloom on top of that grade.
+    //
+    // c0 (Y / luma) takes the screen-blend with time-varying intensity:
+    //   out = A + (255-A) * alpha(T) * B / 255
+    //   alpha(T) = 0.18 + 0.18*sin(2*PI*T/duration)  → range 0.0 to 0.36
+    // c1/c2 (U/V chroma) pass through the styled image unchanged so the
+    // bloom never tints the photo's colours.
+    if (animation === 'glow') {
+      const alphaExpr = `(0.18+0.18*sin(2*PI*T/${duration}))`;
+      graph +=
+        `;${label}split=2[g_a][g_b];` +
+        `[g_b]gblur=sigma=10[g_blurred];` +
+        `[g_a][g_blurred]blend=` +
+        `c0_expr='A+(255-A)*${alphaExpr}*B/255':` +
+        `c1_expr='A':c2_expr='A',` +
+        `format=yuv420p[glown]`;
+      label = '[glown]';
     }
 
     // Free-tier watermark — applied last so it sits above the look filter and
