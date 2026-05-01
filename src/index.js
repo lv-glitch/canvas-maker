@@ -146,14 +146,15 @@ function buildMotion({ animation, frames, fps, duration, outW, outH, prepW, prep
       );
     }
     case 'pulse':
-      // Sharp two-beat zoom rhythm. sin^4 keeps the zoom near 1.04 for most
-      // of each beat and snaps up to 1.18 at the peak — reads as a "pulse"
-      // instead of a sine breathing motion. No per-frame color modulation:
-      // earlier `hue=h='6*sin()'` made user-selected look filters appear
-      // unstable across the loop because the wobble ran *before* the look's
-      // color grade and shifted its baseline tones every frame.
+      // Heartbeat-cadence zoom: 2 sharp beats per second (~120bpm). The sin^6
+      // envelope keeps z parked at 1.05 most of the time and snaps to 1.20 at
+      // each beat, then snaps back — reads as a heartbeat instead of a sine
+      // breath. Frequency is derived from fps so it stays at 2 beats/sec
+      // regardless of fps; loop is seamless because (2 beats/sec * integer
+      // duration) is always an integer number of full cycles. No per-frame
+      // color modulation here — that conflicts with look filters.
       return (
-        `zoompan=z='1.04+0.14*pow(sin(2*PI*on/${frames})\\,4)'` +
+        `zoompan=z='1.05+0.15*pow(sin(PI*2*on/${fps})\\,6)'` +
         `:d=${frames}:x='${xCenter}':y='${yCenter}':s=${size}:fps=${fps}`
       );
     case 'kenburns': {
@@ -188,15 +189,14 @@ function buildMotion({ animation, frames, fps, duration, outW, outH, prepW, prep
       );
     }
     case 'glow':
-      // Motion is a slow bell-curve zoom (one swell per loop, smooth in/out).
-      // The "glow" itself — a soft halation bloom — is layered on top of the
-      // styled output via split + gblur + lighten-blend in buildFilterGraph,
-      // so it composites *after* the user's look filter instead of fighting
-      // it. The earlier inline `eq=brightness=…sin(t)…` ran *before* the look
-      // filter, which shifted the look's baseline tones every frame and made
-      // users perceive look filters as broken under glow.
+      // Glow is about light, not motion. Hold the photo essentially static
+      // (a barely-perceptible 1.04↔1.06 breath, just so it doesn't feel like
+      // a still image) and let the halation bloom in buildFilterGraph carry
+      // the rhythm. The bloom is composited *after* the user's look filter
+      // (chains-aware split → gblur → screen-blend), so the look's color
+      // grade survives unchanged underneath.
       return (
-        `zoompan=z='1.04+0.10*pow(sin(PI*on/${frames})\\,2)'` +
+        `zoompan=z='1.05+0.01*sin(2*PI*on/${frames})'` +
         `:d=${frames}:x='${xCenter}':y='${yCenter}':s=${size}:fps=${fps}`
       );
     case 'rotate': {
@@ -304,21 +304,25 @@ function buildFilterGraph({ animation, duration, fps, width, height, layout, fgS
       label = '[styled]';
     }
 
-    // Glow halation pass — split the styled output, blur one copy, and
-    // screen-blend the bloom back on top with a time-varying alpha. Runs
-    // *after* the look filter so the look's color grade is the static
-    // baseline; glow only adds a rhythmic bloom on top of that grade.
+    // Glow halation pass — split the styled output, soft-blur one copy
+    // heavily, and screen-blend the bloom back on top with a time-varying
+    // alpha that throbs once per second. Runs *after* the look filter so
+    // the look's color grade is the static baseline; glow only adds the
+    // rhythmic bloom on top of that grade.
     //
-    // c0 (Y / luma) takes the screen-blend with time-varying intensity:
+    // c0 (Y / luma) takes the screen-blend:
     //   out = A + (255-A) * alpha(T) * B / 255
-    //   alpha(T) = 0.18 + 0.18*sin(2*PI*T/duration)  → range 0.0 to 0.36
-    // c1/c2 (U/V chroma) pass through the styled image unchanged so the
-    // bloom never tints the photo's colours.
+    //   alpha(T) = 0.40 - 0.40*cos(2*PI*T)  → range 0 → 0.80, 1Hz throb
+    // The cos-with-offset form starts each loop at alpha=0 (no glow) and
+    // peaks halfway through the second at alpha=0.80, reading as a clear
+    // "throbbing glow" instead of a constant haze.
+    // c1/c2 (U/V chroma) pass through unchanged so the bloom never tints
+    // the photo's colours — it only brightens.
     if (animation === 'glow') {
-      const alphaExpr = `(0.18+0.18*sin(2*PI*T/${duration}))`;
+      const alphaExpr = `(0.40-0.40*cos(2*PI*T))`;
       graph +=
         `;${label}split=2[g_a][g_b];` +
-        `[g_b]gblur=sigma=10[g_blurred];` +
+        `[g_b]gblur=sigma=22[g_blurred];` +
         `[g_a][g_blurred]blend=` +
         `c0_expr='A+(255-A)*${alphaExpr}*B/255':` +
         `c1_expr='A':c2_expr='A',` +
