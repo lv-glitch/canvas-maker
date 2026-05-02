@@ -253,10 +253,15 @@ export function createApp() {
       const layout = LAYOUTS.includes(req.body.layout) ? req.body.layout : SPOTIFY_DEFAULTS.layout;
       const look = FILTERS.includes(req.body.filter) ? req.body.filter : 'none';
       const duration = Math.min(8, Math.max(3, Number(req.body.duration) || SPOTIFY_DEFAULTS.duration));
-      // Watermark is applied unless the caller explicitly passes "false".
-      // Frontend sets it to "false" only for Pro users (and once per-canvas
-      // unlocks ship, for paid one-off canvases too).
-      const watermark = String(req.body.watermark) !== 'false';
+      // Watermark policy: only privileged callers (those holding the
+      // backend token, i.e. our own server-side proxy /api/render and the
+      // Stripe-webhook re-render path) can opt out. Anyone else (random
+      // curl, browser-direct call) gets watermarked no matter what they
+      // pass, closing the "spoof Pro client-side to skip watermark" hole.
+      // Local dev / Electron desktop fail-open when BACKEND_TOKEN is unset.
+      const expectedToken = process.env.BACKEND_TOKEN;
+      const isPrivileged = !expectedToken || req.header('x-backend-token') === expectedToken;
+      const watermark = isPrivileged ? (String(req.body.watermark) !== 'false') : true;
 
       await generateCanvas({
         input: req.file.path,
